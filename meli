@@ -1,0 +1,42 @@
+# requiere instalar en el equipo previamente el modulo openpyxl
+# pip install openpyxl
+import pandas as pd #Importo las libreria Pandas - Utilizada para transformar el Json en dataframes (domado de datos mas simple)  
+import numpy as np # Importo la libreria Nympy - Me permite hacer una serie de analisis numericos de la fuente de dato
+import json # Importo el modulo de python para trabajar con Json
+
+# Creacion de Variables
+#dataframe_db = pd.read_json("dblist.json", orient= "records")# Cargo el archivo del reto y lo pinto como una lista
+dataframe_db = pd.read_json("dblist.json") #Cargo el archivo del reto
+# Transformo el Json en un dataframe para simplificar mis operaciones
+# creo cada una de las series o conjunto de series que construyen mimi dataframe
+
+dataframe_db["dn_name"] = dataframe_db["db_list"].apply(lambda x :( x["dn_name"]))#  
+dataframe_db["classification_confidentiality"] = dataframe_db["db_list"].apply(lambda x :( x["classification"]["confidentiality"]))
+dataframe_db["classification_integrity"] = dataframe_db["db_list"].apply(lambda x :( x["classification"]["integrity"]))
+dataframe_db["classification_availability"] = dataframe_db["db_list"].apply(lambda x :( x["classification"]["availability"]))
+dataframe_db["owner_name"] = dataframe_db["db_list"].apply(lambda x :( x["owner"]["name"]))
+dataframe_db["owner_uid"] = dataframe_db["db_list"].apply(lambda x :( x["owner"]["uid"]))
+dataframe_db["owner_email"] = dataframe_db["db_list"].apply(lambda x :( x["owner"].get("email", None)))
+dataframe_db["time_stamp"] = dataframe_db["db_list"].apply(lambda x :( x["time_stamp"]))
+dataframe_db.drop(columns=["db_list"], inplace=True )# elimino la primera columna para que me queden correctamente estructurado mi dataframe
+dataframe_db#.iloc[0].values
+
+# Ahora combino la Base de datos de correos electronicos de los managers vs el Json de los datos con el fin de unificar tablas y entender quien es el manager de que base de datos y a quien remitir su correspondiente correo electronico.
+dataframe_db_1 = pd.read_excel("user_manager.xlsx")# cargo el archivo de excel en python
+
+dataframe_db_1.loc [-1] = dataframe_db_1.columns # ajusto la tabla de managers
+dataframe_db_1 = dataframe_db_1.sort_index (axis=0).reset_index(drop=True)# el eje son las filas
+dataframe_db_1.columns = ["Identificador", "owner_uid", "Estatus", "manager_email"]
+
+# comparo los 2 dataframes a traves de una variable comun como el es ower_uid
+datafinal = pd.merge(dataframe_db, dataframe_db_1, on = "owner_uid")
+
+# uso la libreria numpy para segun el riesgo identificado en la BD,  generar en el arreglo final del dataframe "send_email", una bandera que indique si se debe o no generar un correo electronico al manager d ela base de datos.
+datafinal ["send_email"] = np.where (
+    (datafinal["classification_confidentiality"] == "high" ) | 
+    (datafinal["classification_integrity"] == "high" ) | 
+    (datafinal["classification_availability"] == "high" ), "si", "no"
+    )
+ # finalmente creo un archivo tipo csv, para indicar a quien se le debe enviar un email con la alerta.
+print (datafinal)
+datafinal.to_csv ("Ta_Fina_Meli.csv", index = False)
